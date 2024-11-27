@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>NF Map Creator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <style>
+      body {
+        display: flex;
+        margin: 0;
+        font-family: Arial, sans-serif;
+      }
+      #sidebar {
+        width: 200px;
+        padding: 10px;
+        background-color: #f0f0f0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      #canvas-container {
+        flex-grow: 1;
+      }
+      button,
+      select,
+      input {
+        margin: 5px 0;
+        width: 100%;
+      }
+      #color-picker {
+        height: 40px;
+      }
+      #json-input {
+        width: 100%;
+        height: 100px;
+        margin: 10px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="sidebar">
+      <h3>NF Map Creator</h3>
+      <select id="tool-select">
+        <option value="station">Add Station</option>
+        <option value="select">Select/Move</option>
+      </select>
+
+      <input type="color" id="color-picker" value="#FF0000" />
+
+      <button id="export-btn">Export JSON</button>
+
+      <textarea id="json-input" placeholder="Paste JSON to load map"></textarea>
+      <button id="load-json-btn">Load JSON</button>
+    </div>
+    <div id="canvas-container"></div>
+
+    <script>
+      let canvas;
+      let stations = [];
+      let lines = [];
+      let currentTool = "station";
+      let selectedColor = "#FF0000";
+      let selectedStation = null;
+
+      function setup() {
+        canvas = createCanvas(windowWidth - 220, windowHeight);
+        canvas.parent("canvas-container");
+
+        select("#tool-select").changed(() => {
+          currentTool = select("#tool-select").value();
+        });
+
+        select("#color-picker").changed(() => {
+          selectedColor = select("#color-picker").value();
+        });
+
+        select("#export-btn").mousePressed(exportJSON);
+
+        select("#load-json-btn").mousePressed(loadJSON);
+      }
+
+      function draw() {
+        background(240);
+
+        // Draw lines
+        lines.forEach((lineData) => {
+          stroke(lineData.color);
+          strokeWeight(5);
+
+          for (let i = 1; i < lineData.points.length; i++) {
+            let prevPoint = lineData.points[i - 1];
+            let currPoint = lineData.points[i];
+            line(prevPoint.x, prevPoint.y, currPoint.x, currPoint.y);
+          }
+        });
+
+        // Draw stations
+        stations.forEach((station) => {
+          strokeWeight(2);
+          stroke(0);
+          fill(255);
+          circle(station.x, station.y, 15);
+        });
+      }
+
+      function mousePressed() {
+        if (mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height)
+          return;
+
+        switch (currentTool) {
+          case "station":
+            let newStation = {
+              x: mouseX,
+              y: mouseY,
+            };
+
+            // If there are previous stations, create a line connecting them
+            if (stations.length > 0) {
+              let lastStation = stations[stations.length - 1];
+              lines.push({
+                color: selectedColor,
+                points: [
+                  { x: lastStation.x, y: lastStation.y },
+                  { x: newStation.x, y: newStation.y },
+                ],
+              });
+            }
+
+            stations.push(newStation);
+            break;
+
+          case "select":
+            selectedStation = stations.find(
+              (station) => dist(mouseX, mouseY, station.x, station.y) < 10
+            );
+            break;
+        }
+      }
+
+      function mouseDragged() {
+        if (currentTool === "select" && selectedStation) {
+          // Find the index of the selected station
+          const stationIndex = stations.indexOf(selectedStation);
+
+          selectedStation.x = mouseX;
+          selectedStation.y = mouseY;
+
+          lines.forEach((lineData) => {
+            lineData.points.forEach((point, index) => {
+              // Check if this point corresponds to the selected station
+              if (
+                point.x === selectedStation.x &&
+                point.y === selectedStation.y
+              ) {
+                lineData.points[index] = { x: mouseX, y: mouseY };
+              }
+            });
+          });
+        }
+      }
+
+      function mouseReleased() {
+        selectedStation = null;
+      }
+
+      function exportJSON() {
+        const mapData = {
+          stations: stations,
+          lines: lines,
+        };
+        select("#json-input").value(JSON.stringify(mapData, null, 2));
+      }
+
+      function loadJSON() {
+        try {
+          const jsonInput = select("#json-input").value();
+          const mapData = JSON.parse(jsonInput);
+
+          stations = [];
+          lines = [];
+
+          if (mapData.stations) {
+            stations = mapData.stations;
+          }
+
+          if (mapData.lines) {
+            lines = mapData.lines;
+          }
+        } catch (error) {
+          alert("Invalid JSON: " + error.message);
+        }
+      }
+
+      function windowResized() {
+        resizeCanvas(windowWidth - 220, windowHeight);
+      }
+    </script>
+  </body>
+</html>
